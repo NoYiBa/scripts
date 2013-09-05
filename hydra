@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+#
+# Multi-threaded command execution over SSH
+#
+# Jean-Francois Theroux <failshell@gmail.com>
+#
+# License: GPLv2
+
+require 'net/ssh'
+require 'trollop'
+require 'peach'
+require 'json'
+require 'colorize'
+require 'netaddr'
+require 'spreadsheet'
+
+# Credentials are put here, instead of CLI options, so that
+# the password doesn't show up when you run 'ps'
+user = 'user'
+password = 'password'
+
+# CLI help menu
+opts = Trollop::options do
+  opt :command, 'Command to run', :required => true, :type => String
+  opt :xls, 'Export to XLS'
+  opt :json, 'Export to JSON'
+  opt :file, 'Hosts list file', :type => String
+  opt :subnet, 'Specify a subnet', :type => String
+  opt :verbose, 'Verbose mode'
+end
+
+hosts = []
+if opts.file
+  begin
+    File.open(opts.file).each_line { |l| hosts << l.gsub("\n", '') }
+  rescue => e
+    STDERR.puts "ERROR: #{e}".red
+    exit(1)
+  end
+elsif opts.subnet
+  cidr =  NetAddr::CIDR.create(opts.subnet)
+  hosts = cidr.enumerate
+else
+  abort("Must specify host list or subnet")
+end
+
+# multithreaded command execution
+results = {}
+hosts.peach do |host|
+  begin
+    Net::SSH.start(host, user, :password => password, :config => false) do |ssh|
+      output = []
+      ssh.exec!(opts.command).each_line do |out|
+        output << out.gsub("\n", '')
+      end
+      results[host] = output
+    end
+  rescue Errno::ECONNREFUSED => e
+    STDERR.puts "#{host}: #{e.to_s}".yellow
+  rescue Net::SSH::AuthenticationFailed
+    STDERR.puts "#{host}: Invalid user".yellow
+  rescue SocketError => e
+    STDERR.puts "#{host}: #{e.to_s}".yellow
+  rescue Errno::ETIMEDOUT => e
+    STDERR.puts "#{host}: #{e.to_s}".yellow
+  rescue Errno::EHOSTUNREACH => e
+    STDERR.puts "#{host}: #{e.to_s}".yellow
+  rescue Net::SSH::HostKeyMismatch => e
+    STDERR.puts "#{host}: #{e.to_s}".yellow
+  end
+end
+
+if opts.xls
+    book = Spreadsheet::Workbook.new
+    sheet = book.create_worksheet
+    sheet.name = 'Hydra'
+    results.each do |result|
+      row = sheet.row(sheet.row_count + 1)
+      row.push result[0]
+      result[1].each { |r| row.push r }
+    end
+    begin
+      book.write('hydra.xls')
+    rescue => e
+      STDERR.puts "ERROR: #{e}".red
+      exit(1)
+    end
+end
+
+if opts.verbose
+  if results == {}
+    STDERR.puts 'ERROR: No results... Doh!'.red
+  elsif opts.json
+    puts JSON.pretty_generate(results).light_green
+  elsif opts.xls
+    STDERR.puts 'ERROR: verbose mode not supported for XLS format'.red
+    exit(1)
+  else
+    STDERR.puts 'ERROR: No output format selected.'.red
+    exit(1)
+  end
+end

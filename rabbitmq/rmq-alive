@@ -1,0 +1,26 @@
+#!/usr/bin/env ruby
+#
+# Zabbix monitoring script checking if RabbitMQ is alive and answering properly.
+# 
+# Requires the RabbitMQ Management plugin to be installed.
+#
+# Author: Jean-Francois Theroux <failshell@gmail.com>
+#
+# License: GPLv2
+
+require 'rubygems' if RUBY_VERSION < '1.9'
+require 'rest_client'
+require 'json'
+
+# Connection settings
+user = 'username'
+pass = 'password'
+host = 'localhost'
+port = '55672'
+
+req =  RestClient.get "http://#{user}:#{pass}@#{host}:#{port}/api/aliveness-test/monitoring"
+if JSON.parse(req)['status'] == 'ok'
+  puts '0'
+else
+  puts '1'
+end

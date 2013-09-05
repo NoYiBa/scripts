@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+#
+# Nostalgia script. I remember coding a tool that did just
+# that years ago when I was a kid. In BASIC no less.
+# We used it during our Dungeons and Dragons games :)
+
+require 'rubygems' if RUBY_VERSION < '1.9'
+require 'highline/import'
+
+num_faces = ask('Number of faces for your dice? ', Integer)
+num_dice = ask('How many dice do you want to roll? ', Integer)
+
+(1..num_dice).each do |d|
+  r = rand(num_faces) + 1
+  puts "Dice #{d}: #{r}"
+end

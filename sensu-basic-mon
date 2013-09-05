@@ -1,0 +1,41 @@
+#!/opt/sensu/embedded/bin/ruby
+#
+# Quis custodiet ipsos custodes?
+#
+# Basic monitoring of Sensu via the APi. Meant to be run as a cron job.
+#
+# Requirements: sensu > 0.10.x
+#
+# Written by Jean-Francois Theroux <failshell@gmail.com>
+
+require "rubygems"
+require "net/http"
+require "json"
+
+fqdn = `hostname -f`.chomp()
+pid_file = "/var/run/sensu/sensu-server.pid" # Location set by the official sensu-chef cookbook.
+
+# API/Redis/RabbitMQ monitoring
+begin
+  res = Net::HTTP.get_response(URI("http://localhost:4567/info"))
+  if JSON.parse(res.body)["redis"]["connected"] == false
+    puts "Sensu isn't connected to Redis on #{fqdn}!"
+  end
+
+  if JSON.parse(res.body)["rabbitmq"]["connected"] == false
+    puts "Sensu isn't connected to RabbitMQ on #{fqdn}!"
+  end
+rescue Errno::ECONNREFUSED
+  puts "Sensu API is down on #{fqdn}! Redis and RabbitMQ might be down as well."
+end
+
+# Server process monitoring
+begin
+  Process.kill(0, File.read(pid_file).to_i)
+rescue Errno::EPERM
+  puts "You should run this script as root!"
+rescue Errno::ESRCH
+  puts "Sensu-server is down on #{fqdn}!"
+rescue Errno::ENOENT
+  puts "Sensu-server is down on #{fqdn}!"
+end

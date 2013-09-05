@@ -1,0 +1,70 @@
+#!/usr/bin/env ruby
+
+begin
+  require 'rubygems'
+  require 'anemone'
+  require 'json'
+  require 'net/http'
+  require 'trollop'
+rescue LoadError => e
+  puts "ERROR: Missing gem: #{e}"
+  exit 1
+end
+
+# Help menu
+opts = Trollop::options do
+  opt :site, 'Site to crawl', :required => true, :type => String
+end
+
+# Fixing the base URL if needed.
+if not opts[:site] =~ /^http/
+  base_url = 'http://' + opts[:site]
+else
+  base_url = opts[:site]
+end
+site_data = {}
+site_data['base_url'] = base_url
+
+# Testing if the entered URL redirects because Anemone
+# doesn't follow 30x codes. Changing base URL if that's
+# the case.
+begin
+  t = Net::HTTP.get_response(URI(base_url))
+  if t.code =~ /^3/
+    base_url = t.fetch('location')
+  end
+rescue SocketError => e
+  puts "ERROR: #{e}"
+  exit 1
+end
+
+# Crawling pages to extract objects and store them in
+# a hash of arrays.
+pages = {}
+Anemone.crawl(base_url) do |a|
+  begin
+    a.storage = Anemone::Storage.MongoDB
+  rescue Mongo::ConnectionFailure => e
+    puts "ERROR: #{e}"
+    exit 1
+  end
+  a.on_every_page do |p|
+    obj = []
+    if p.html?
+      p.doc.xpath('//img[@src]').each do |n|
+ 	obj << n['src']
+      end
+      p.doc.xpath('//*[@type="text/javascript"]').each do |n|
+        if not n['src'] == nil
+    	  obj << n['src']
+    	  end
+      end
+      p.doc.xpath('//*[@type="text/css"]').each do |n|
+       	obj << n['href']
+      end
+    pages[p.url] = obj
+    end
+  end
+end
+site_data['pages'] = pages
+puts JSON.pretty_generate(site_data)

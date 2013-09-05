@@ -1,0 +1,117 @@
+#!/usr/bin/env ruby
+#
+# Wordpress backup and restore
+#
+# Creates a tarball of the document root
+# Create a .sql dump of the database
+
+require 'rubygems'
+require 'trollop'
+require 'fileutils'
+require 'zlib'
+require 'archive/tar/minitar'
+require 'colorize'
+include Archive::Tar
+
+# CLI help menu
+opts = Trollop::options do
+  opt :archive, 'Archive file', :type => String, :default => 'wpbr.tar.gz'
+  opt :backup, 'Backup mode', :default => true
+  opt :dir, 'Wordpress root directory', :required => true, :type => String
+  opt :restore, 'Restore mode'
+  opt :tmp, 'Temporary directory to build archive', :default => '/tmp'
+end
+
+# Functions
+def log_info(msg)
+  $stdout.puts msg.light_green
+end
+
+def log_error(msg)
+  $stderr.puts msg.red
+  exit 1
+end
+
+def sanitize_php_line(line)
+  line.split("'")[3]
+end
+
+# Preflight checks
+unless Process.euid == 0
+  log_error('Needs to run as root to preserve file ownership, etc.')
+end
+
+unless opts.backup or opts.restore
+  log_error('Please select a mode.')
+end
+
+if opts.backup and opts.restore
+  log_error("Bipolar much? Can't backup AND restore at the same time.")
+end
+
+if not File.exists?(opts.dir)
+  log_error('Invalid Wordpress root directory specified.')
+end
+
+# Main sauce
+if opts.backup
+  # If destination temporary directory exists, remove it
+  if File.exists?(opts.tmp + '/wpbr/')
+    begin
+      FileUtils.rm_rf(opts.tmp + '/wpbr/')
+      log_info("=> temporary directory #{opts.tmp + '/wpbr/'} removed")
+    rescue => e
+      log_error("#{e}")
+    end
+  end
+
+  # Make a backup copy of the document root
+  begin
+    unless File.exists?(opts.tmp)
+      FileUtils.mkdir(opts.tmp)
+    end
+    FileUtils.cp_r(opts.dir, opts.tmp + '/wpbr/', :preserve => true)
+    log_info("=> copied #{opts.dir} to #{opts.tmp + '/wpbr/'}")
+  rescue => e
+    log_error("#{e}")
+  end
+
+  # Dump the DB
+  f = File.open("#{opts.dir}" + 'wp-config.php')
+  f.each do |line|
+    if line =~ /DB_NAME/
+      @db = sanitize_php_line(line)
+    elsif line =~ /DB_USER/
+      @user = sanitize_php_line(line)
+    elsif line =~ /DB_PASSWORD/
+      @pass = sanitize_php_line(line)
+    elsif line =~ /DB_HOST/
+      @host = sanitize_php_line(line)
+    end
+  end
+  begin
+    `mysqldump -u #{@user} -p#{@pass} -h #{@host} #{@db} > #{opts.tmp + '/wpbr/'}wpbr.sql`
+    log_info("=> created database dump in #{opts.tmp + '/wpbr/'}wpbr.sql")
+  rescue => e
+    log_error("#{e}")
+  end
+ 
+  # Create tarball
+  begin
+    tgz = Zlib::GzipWriter.new(File.open(opts.archive, 'wb'))
+    Minitar.pack(opts.tmp + '/wpbr/', tgz)
+    log_info("=> created #{opts.archive}")
+  rescue => e
+    log_error("#{e}")
+  end
+
+  # Remove temp dir
+    begin
+      FileUtils.rm_rf(opts.tmp + '/wpbr/')
+      log_info("=> temporary directory #{opts.tmp + '/wpbr/'} removed")
+    rescue => e
+      log_error("#{e}")
+    end
+
+elsif opts.restore
+end

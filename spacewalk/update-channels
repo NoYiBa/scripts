@@ -1,0 +1,25 @@
+#!/usr/bin/env ruby
+#
+# This script connects to pgsql to find
+# which channels exists in Spacewalk to
+# update them.
+#
+# Jean-Francois Theroux <failshell@gmail.com>
+
+require 'rubygems'
+require 'pg'
+require 'parseconfig'
+
+# Variables
+cfg_file = '/etc/rhn/rhn.conf'
+cfg = ParseConfig.new(cfg_file)
+u = cfg['db_user']
+p = cfg['db_password']
+s = cfg['db_name']
+h = 'localhost'
+
+# Get channel names
+c = PG::Connection.new( :host => h, :user => u, :password => p, :dbname => s )
+c.exec('SELECT channel_label FROM rhnavailablechannels').each do |row|
+  system("spacewalk-repo-sync -c #{row['channel_label']}")
+end

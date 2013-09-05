@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+#
+# Update all Spacewalk channels repodata.
+#
+# Jean-Francois Theroux <failshell@gmail.com>
+require "xmlrpc/client"
+
+@SATELLITE_URL = "https://server.example.com/rpc/api"
+@SATELLITE_LOGIN = "user"
+@SATELLITE_PASSWORD = "secretsauce"
+
+@client = XMLRPC::Client.new2(@SATELLITE_URL)
+
+@key = @client.call("auth.login", @SATELLITE_LOGIN, @SATELLITE_PASSWORD)
+channels = @client.call('channel.listAllChannels', @key)
+for channel in channels do
+  p channel["label"]
+  @client.call("channel.software.regenerateYumCache", @key, channel["label"])
+end
+
+@client.call("auth.logout", @key)
