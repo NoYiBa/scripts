@@ -1,0 +1,118 @@
+#!/usr/bin/env ruby
+#
+# This script wraps commands used to backup
+# MySQL servers running either InnoDB or
+# MyISAM engines.
+#
+# It uses Percona's XtraBackup tools.
+#
+# Once the backup is done, it compresses it.
+#
+# You can do either a full or incremental backup.
+#
+# Jean-Francois Theroux <me@failshell.io>
+
+require 'fileutils'
+require 'json'
+require 'socket'
+require 'trollop'
+
+# help
+opts = Trollop.options do
+  banner <<-EOS
+  Convenient wrapper for Percona's XtraBackup.
+
+  Usage: xtrabackup [options]
+  EOS
+  opt :config, 'Configuration file', required: true, type: String
+  opt :full, 'Full backup'
+  opt :inc, 'Incremental backup'
+end
+
+# read config
+@cfg = JSON.parse(File.read(opts[:config]))
+
+# vars
+@full_dir = @cfg['base_dir'] + '/full'
+@inc_dir = @cfg['base_dir'] + '/inc'
+
+# functions
+def log_err(msg)
+  fail msg
+end
+
+def rmdir(dir)
+  Dir.exists?(dir) && FileUtils.remove_dir(dir)
+end
+
+def full_backup
+  system("innobackupex #{@full_dir} --no-timestamp --parallel=6 \
+        --user=#{@cfg['mysql_user']} --password='#{@cfg['mysql_password']}'")
+  if $?.exitstatus == 0
+    system("innobackupex --apply-log --parallel=6 \
+        --use-memory=#{@cfg['use_memory']} \
+        #{@full_dir} --user=#{@cfg['mysql_user']} \
+        --password='#{@cfg['mysql_password']}'")
+  end
+rescue
+  log_err('Something went wrong with the backup')
+end
+
+def inc_backup
+  system("innobackupex #{@inc_dir} --no-timestamp --incremental --parallel=6 \
+    --incremental-basedir=#{@full_dir} --user=#{@cfg['mysql_user']} \
+    --password='#{@cfg['mysql_password']}'")
+  if $?.exitstatus == 0
+    system("innobackupex --apply-log --redo-only #{@full_dir} \
+      --use-memory=#{@cfg['use_memory']} --user=#{@cfg['mysql_user']} \
+      --password='#{@cfg['mysql_password']}'")
+  end
+  if $?.exitstatus == 0
+    system("innobackupex --apply-log --redo-only #{@full_dir} \
+      --incremental-dir=#{@inc_dir} --use-memory=#{@cfg['use_memory']} \
+      --user=#{@cfg['mysql_user']} --password='#{@cfg['mysql_password']}'")
+  end
+  if $?.exitstatus == 0
+    system("innobackupex --apply-log #{@full_dir} \
+      --use-memory=#{@cfg['use_memory']} \
+      --user=#{@cfg['mysql_user']} \
+      --password='#{@cfg['mysql_password']}'")
+  end
+rescue
+  log_err('Something went wrong with the backup')
+end
+
+def tar_dir(dir)
+  puts ''
+  puts 'Compressing backup'
+  mode = dir.split('/').last
+  system("cd #{dir} && tar cJpf ../#{Socket.gethostname}-#{mode}-#{Time.now.strftime("%F")}.tar.xz *")
+  puts 'Backup compressed successfully'
+rescue
+  log_err('Could not compress backup')
+end
+
+# preflight
+if Dir.exists?(@cfg['base_dir'])
+  unless File.writable?(@cfg['base_dir'])
+    log_err("#{@cfg['base_dir']} isn't writable")
+  end
+end
+
+unless File.executable?('/usr/bin/innobackupex')
+  log_err("/usr/bin/innobackupex isn't executable")
+end
+
+# backups
+if opts[:full]
+  # cleanup previous backup
+  rmdir(@full_dir)
+  full_backup
+  tar_dir(@full_dir)
+elsif opts[:inc]
+  # cleanup previous backup
+  rmdir(@inc_dir)
+  inc_backup
+else
+  log_err('missing -f or -i flag')
+end

@@ -1,0 +1,6 @@
+{
+  "base_dir": "/data/mysql/backup",
+  "mysql_user": "user",
+  "mysql_password": "secretsauce",
+  "use_memory": "100M"
+}
