@@ -113,6 +113,7 @@ elsif opts[:inc]
   # cleanup previous backup
   rmdir(@inc_dir)
   inc_backup
+  tar_dir(@inc_dir)
 else
   log_err('missing -f or -i flag')
 end
