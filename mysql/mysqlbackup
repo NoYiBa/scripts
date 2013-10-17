@@ -6,8 +6,7 @@
         - Connects to localhost
         - Uses the Debian maintainer user so no new grant 
           is required
-
-    License: GNU General Public License version 2 '''
+'''
 
 import datetime
 import gzip
