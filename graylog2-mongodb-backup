@@ -4,7 +4,7 @@
 # It doesn't copy the messages though, as it could take a lot
 # storage.
 #
-# License: GPLv2
+# Author: Jean-Francois Theroux <me@failshell.io>
 
 require 'mongo'
 require 'trollop'
