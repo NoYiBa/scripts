@@ -3,8 +3,6 @@
 # Multi-threaded command execution over SSH
 #
 # Jean-Francois Theroux <failshell@gmail.com>
-#
-# License: GPLv2
 
 require 'net/ssh'
 require 'trollop'
