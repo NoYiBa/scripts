@@ -4,7 +4,6 @@
 #
 # Author: Jean-Francois Theroux <failshell@gmail.com>
 # Version: 0.1
-# License: GPLv2
 #
 # Crawls a web page looking for dynamic URLs. Once
 # it finds one, tries some blind SQL injection on it.
