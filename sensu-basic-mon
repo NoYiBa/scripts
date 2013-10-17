@@ -6,36 +6,64 @@
 #
 # Requirements: sensu > 0.10.x
 #
-# Written by Jean-Francois Theroux <failshell@gmail.com>
+# Written by Jean-Francois Theroux <me@failshell.io>
 
-require "rubygems"
-require "net/http"
+require 'fileutils'
 require "json"
+require "net/http"
+require 'socket'
 
-fqdn = `hostname -f`.chomp()
-pid_file = "/var/run/sensu/sensu-server.pid" # Location set by the official sensu-chef cookbook.
+attempts = 0
+fqdn = Socket.gethostname
+lock = '/tmp/sensu-basic-mon.lock'
+mtime = File.mtime('/tmp/sensu-basic-mon.lock').to_i
+now = Time.now.to_i
+diff = mtime + 900
 
-# API/Redis/RabbitMQ monitoring
+# Lock, don't want to run more than one at a time
+if now > diff
+  FileUtils.rm_f(lock)
+end
+if File.exists?(lock)
+  exit 1
+end
+FileUtils.touch(lock)
+
+# Test the API
 begin
   res = Net::HTTP.get_response(URI("http://localhost:4567/info"))
+
+  errors = 0
+  errors_types = Array.new
+
   if JSON.parse(res.body)["redis"]["connected"] == false
-    puts "Sensu isn't connected to Redis on #{fqdn}!"
+    errors = errors + 1
+    errors_types << 'Redis'
   end
 
   if JSON.parse(res.body)["rabbitmq"]["connected"] == false
-    puts "Sensu isn't connected to RabbitMQ on #{fqdn}!"
+    errors = errors + 1
+    errors_types << 'RabbitMQ'
+  end
+
+  if errors > 0
+    raise
   end
 rescue Errno::ECONNREFUSED
-  puts "Sensu API is down on #{fqdn}! Redis and RabbitMQ might be down as well."
+  if attempts < 3
+    attempts = attempts + 1
+    sleep(Random.rand(50...70))
+    retry
+  end
+  puts "Couldn't connect to Sensu's API on #{fqdn}! 3 failed retries of 60 seconds."
+rescue Exception
+  if attempts < 3
+    attempts = attempts + 1
+    sleep(Random.rand(50...70))
+    retry
+  end
+  errors_types.each {|e| puts "Sensu on #{fqdn} isn't connected to #{e}! 3 failed retries of 60 seconds."}
 end
 
-# Server process monitoring
-begin
-  Process.kill(0, File.read(pid_file).to_i)
-rescue Errno::EPERM
-  puts "You should run this script as root!"
-rescue Errno::ESRCH
-  puts "Sensu-server is down on #{fqdn}!"
-rescue Errno::ENOENT
-  puts "Sensu-server is down on #{fqdn}!"
-end
+# Remove lock
+FileUtils.rm(lock)
