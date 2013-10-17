@@ -4,7 +4,7 @@
 # which channels exists in Spacewalk to
 # update them.
 #
-# Jean-Francois Theroux <failshell@gmail.com>
+# Jean-Francois Theroux <me@failshell.io>
 
 require 'rubygems'
 require 'pg'
