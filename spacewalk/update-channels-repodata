@@ -2,7 +2,8 @@
 #
 # Update all Spacewalk channels repodata.
 #
-# Jean-Francois Theroux <failshell@gmail.com>
+# Jean-Francois Theroux <me@failshell.io>
+
 require "xmlrpc/client"
 
 @SATELLITE_URL = "https://server.example.com/rpc/api"
