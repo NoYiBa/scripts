@@ -1,6 +1,6 @@
 #!/usr/bin/ruby
 #
-# Author: Jean-Francois Theroux <failshell@gmail.com>
+# Author: Jean-Francois Theroux <me@failshell.io>
 #
 # This script facilitate the reindexation of an
 # Elastic Search index.
