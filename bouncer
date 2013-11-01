@@ -1,0 +1,87 @@
+#!/usr/bin/env ruby
+#
+# Author: Jean-Francois Theroux <me@failshell.io>
+#
+# Bouncer wraps the knife vsphere plugin to help
+# start or stop a vSphere environment.
+
+require 'colorize'
+require 'mixlib/cli'
+require 'mixlib/shellout'
+require 'peach'
+
+module Bouncer
+  VERSION = '0.0.2'
+  class CLI
+    class Options
+      include Mixlib::CLI
+
+      option :folder,
+        :short => '-f FOLDER',
+        :long => '--folder FOLDER',
+        :required => true,
+        :description => 'Comma delimited list of folders where VMs are',
+        :proc => lambda { |o| o.split(/[\s,]+/) }
+
+      option :help,
+        :short => '-h',
+        :long => '--help',
+        :description => 'This help message',
+        :boolean => true
+
+      option :on,
+        :short => '-o',
+        :description => 'ON',
+        :boolean => true
+
+      option :shutdown,
+        :short => '-s',
+        :description => 'OFF',
+        :boolean => true
+
+    end
+
+    def exec(cmd)
+      cmd = Mixlib::ShellOut.new('knife vsphere vm ' + cmd)
+      cmd.run_command
+      cmd.error!
+      return cmd.stdout
+    end
+  end
+end
+
+# Get options 
+opts = Bouncer::CLI::Options.new
+opts.parse_options
+
+# Trying the turn the env on AND off.. really?!
+if opts.config[:on] == true and opts.config[:shutdown] == true
+  puts 'Trying the turn the env on AND off.. really?!'.red
+  exit(1)
+end
+
+# On or off?
+if opts.config[:on] == true
+  params = ' -s on'
+elsif opts.config[:shutdown] == true
+  params = ' -s off -g'
+end
+
+# Turn on/off the environment
+cli = Bouncer::CLI.new
+opts.config[:folder].each do |f|
+  puts "Bouncing => #{f}".blue
+  puts '-------------------'
+
+  # generate hosts list
+  v = cli.exec("list -f #{f}")
+  hosts = Array.new
+  v.each_line do |l|
+    hosts << l.split[2]
+  end
+
+  hosts.peach do |h|
+    puts cli.exec("state #{h} -f #{f} #{params}").chomp("\n").green
+  end
+  puts ''
+end
