@@ -5,7 +5,6 @@
 # Bouncer wraps the knife vsphere plugin to help
 # start or stop a vSphere environment.
 
-require 'colorize'
 require 'mixlib/cli'
 require 'mixlib/shellout'
 require 'peach'
@@ -56,7 +55,7 @@ opts.parse_options
 
 # Trying the turn the env on AND off.. really?!
 if opts.config[:on] == true and opts.config[:shutdown] == true
-  puts 'Trying the turn the env on AND off.. really?!'.red
+  puts 'Trying the turn the env on AND off.. really?!'
   exit(1)
 end
 
@@ -70,7 +69,7 @@ end
 # Turn on/off the environment
 cli = Bouncer::CLI.new
 opts.config[:folder].each do |f|
-  puts "Bouncing => #{f}".blue
+  puts "Bouncing => #{f}"
   puts '-------------------'
 
   # generate hosts list
@@ -81,7 +80,7 @@ opts.config[:folder].each do |f|
   end
 
   hosts.peach do |h|
-    puts cli.exec("state #{h} -f #{f} #{params}").chomp("\n").green
+    puts cli.exec("state #{h} -f #{f} #{params}").chomp("\n")
   end
   puts ''
 end
