@@ -50,9 +50,9 @@ end
 # Execute command
 hosts.peach do |host|
   Net::SSH.start(host, opts.config[:user]) do |ssh|
+    o = ssh.exec!(opts.config[:cmd])
     puts host
     puts '---------------------'
-    o = ssh.exec!(opts.config[:cmd])
     puts o
     puts ''
   end
