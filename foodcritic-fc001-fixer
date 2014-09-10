@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+
+if ARGV[0].nil?
+  puts 'Usage: fc001-fixer [dir path]'
+  exit 1
+end
+
+Dir.glob(File.join(ARGV[0], '**', '*.rb')).each do |file|
+  text = File.read(file)
+  File.open(file, 'w') { |f| f.write(text.gsub(/\[\:([a-z0-9_]+)\]/, '[\'\1\']')) }
+  puts "FC001 was fixed in #{file}"
+end
